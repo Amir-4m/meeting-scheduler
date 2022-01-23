@@ -1,6 +1,10 @@
-from drf_writable_nested import WritableNestedModelSerializer
+from rest_framework import serializers
+from django.utils.translation import ugettext_lazy as _
 
-from apps.meetings.models import Meeting, MeetingSchedule
+from drf_writable_nested import WritableNestedModelSerializer
+from rest_framework.exceptions import ValidationError
+
+from apps.meetings.models import Meeting, MeetingSchedule, ReservedMeeting
 
 
 class ScheduleSerializer(WritableNestedModelSerializer):
@@ -15,3 +19,15 @@ class MeetingSerializer(WritableNestedModelSerializer):
     class Meta:
         model = Meeting
         exclude = ('user',)
+
+
+class ReservedMeetingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReservedMeeting
+        fields = '__all__'
+
+    def validate(self, attrs):
+        meeting_schedule = attrs['meeting_schedule']
+        if not meeting_schedule.is_active:
+            raise ValidationError({'meeting_schedule': _("this schedule is not active")})
+        return super(ReservedMeetingSerializer, self).validate(attrs)

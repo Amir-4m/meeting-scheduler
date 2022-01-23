@@ -1,5 +1,6 @@
 import graphene
 from django import http
+from django.contrib.auth.models import User
 from graphene import relay, ObjectType
 from graphene_django import DjangoObjectType
 from graphene_django.filter import DjangoFilterConnectionField
@@ -8,23 +9,38 @@ from django.utils.translation import ugettext_lazy as _
 from graphene_django.rest_framework.mutation import SerializerMutation
 from rest_framework import serializers
 
+from utils.base_schema import DjangoDeleteMutation
 from .models import MeetingSchedule, Meeting
-from .serializers import MeetingSerializer
+from .serializers import MeetingSerializer, ReservedMeetingSerializer
+
+
+class UserNode(DjangoObjectType):
+    object_id = graphene.ID(source='pk', required=True)
+
+    class Meta:
+        model = User
+        filter_fields = ['id', 'email', 'username', 'first_name', 'last_name']
+        interfaces = (relay.Node,)
 
 
 class MeetingScheduleNode(DjangoObjectType):
+    object_id = graphene.ID(source='pk', required=True)
+    is_reserved = graphene.Boolean(source='is_reserved')
+
     class Meta:
         model = MeetingSchedule
-        filter_fields = ['available_at', 'meeting', 'is_active']
+        filter_fields = ['available_at', 'meeting', 'is_active', 'id']
         interfaces = (relay.Node,)
 
 
 class MeetingNode(DjangoObjectType):
-    schedules = graphene.List(MeetingScheduleNode)
+    schedules = DjangoFilterConnectionField(MeetingScheduleNode)
+    object_id = graphene.ID(source='pk', required=True)
+    user = graphene.Field(UserNode)
 
     class Meta:
         model = Meeting
-        filter_fields = ['title', 'user', 'is_active']
+        filter_fields = ['title', 'user', 'is_active', 'id']
         interfaces = (relay.Node,)
         convert_choices_to_enum = False
 
@@ -60,14 +76,14 @@ class CreateUpdateMeetingMutation(SerializerMutation):
             raise PermissionDenied(_("anonymous users do not have access to mutation."))
 
         if 'id' in input:
-            instance = Meeting.objects.filter(
-                id=input['id'], user=info.context.user
-            ).first()
-            if instance:
+            try:
+                instance = Meeting.objects.get(
+                    id=input['id'], user=info.context.user
+                )
                 return {'instance': instance, 'data': input, 'partial': True}
 
-            else:
-                raise http.Http404
+            except Meeting.DoesNotExist:
+                raise http.Http404(_("object does not exist."))
         return {'data': input, 'partial': True}
 
     @classmethod
@@ -85,20 +101,30 @@ class CreateUpdateMeetingMutation(SerializerMutation):
         return cls(errors=None, **kwargs)
 
 
-class DeleteMeetingMutation(graphene.Mutation):
-    deleted = graphene.Boolean()
-
-    class Arguments:
-        id = graphene.ID()
+class DeleteMeetingMutation(DjangoDeleteMutation):
+    class Meta:
+        model = Meeting
 
     @classmethod
-    def mutate(cls, root, info, **kwargs):
-        if info.context.user.is_anonymous:
-            raise PermissionDenied(_("anonymous users do not have access to mutation."))
+    def mutate(cls, root, info, filter_kwargs=None, **kwargs):
+        filter_kwargs = {'id': kwargs['id'], "user": info.context.user}
+        return super(DeleteMeetingMutation, cls).mutate(root, info, filter_kwargs, **kwargs)
 
-        obj = Meeting.objects.get(pk=kwargs["id"], user=info.context.user)
-        obj.delete()
-        return cls(deleted=True)
+
+class DeleteMeetingScheduleMutation(DjangoDeleteMutation):
+    class Meta:
+        model = MeetingSchedule
+
+    @classmethod
+    def mutate(cls, root, info, filter_kwargs=None, **kwargs):
+        filter_kwargs = {'id': kwargs['id'], "meeting__user": info.context.user}
+        return super(DeleteMeetingScheduleMutation, cls).mutate(root, info, filter_kwargs, **kwargs)
+
+
+class CreateReservedMeetingMutation(SerializerMutation):
+    class Meta:
+        serializer_class = ReservedMeetingSerializer
+        model_operations = ['create']
 
 
 class MeetingQuery(ObjectType):
@@ -113,3 +139,6 @@ class MeetingMutation(graphene.ObjectType):
     create_update_meeting = CreateUpdateMeetingMutation.Field()
     delete_meeting = DeleteMeetingMutation.Field()
 
+    delete_meeting_schedule = DeleteMeetingScheduleMutation.Field()
+
+    create_reserved_meeting = CreateReservedMeetingMutation.Field()

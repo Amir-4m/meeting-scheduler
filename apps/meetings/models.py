@@ -1,5 +1,4 @@
 from django.contrib.auth.models import User
-from django.contrib.postgres.fields import ArrayField
 from django.utils.translation import ugettext_lazy as _
 from django.db import models
 
@@ -31,3 +30,21 @@ class MeetingSchedule(TimeMixin):
     available_at = models.DateTimeField(_("Available at"))
     meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name='schedules')
     is_active = models.BooleanField(_("Active ?"), default=True)
+
+    class Meta:
+        unique_together = ('available_at', 'meeting')
+
+    def __str__(self):
+        return f'{self.id} - {self.meeting.title} - {self.available_at}'
+
+    def is_reserved(self):
+        return hasattr(self, 'reserved')
+
+
+class ReservedMeeting(TimeMixin):
+    guest_fullname = models.CharField(_("Guest fullname"), max_length=256)
+    guest_email = models.EmailField(_("Guest email"))
+    meeting_schedule = models.OneToOneField(MeetingSchedule, on_delete=models.PROTECT, related_name='reserved')
+
+    def __str__(self):
+        return f'{self.id} - {self.guest_fullname} - {self.guest_email} - {self.meeting_schedule.meeting.title}'
