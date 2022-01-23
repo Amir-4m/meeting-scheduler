@@ -25,11 +25,10 @@ class UserNode(DjangoObjectType):
 
 class MeetingScheduleNode(DjangoObjectType):
     object_id = graphene.ID(source='pk', required=True)
-    is_reserved = graphene.Boolean(source='is_reserved')
 
     class Meta:
         model = MeetingSchedule
-        filter_fields = ['available_at', 'meeting', 'is_active', 'id']
+        filter_fields = ['available_at', 'meeting', 'is_active', 'id', 'is_reserved']
         interfaces = (relay.Node,)
 
 
@@ -40,7 +39,7 @@ class MeetingNode(DjangoObjectType):
 
     class Meta:
         model = Meeting
-        filter_fields = ['title', 'user', 'is_active', 'id']
+        filter_fields = ['title', 'user', 'id']
         interfaces = (relay.Node,)
         convert_choices_to_enum = False
 
@@ -49,9 +48,12 @@ class MeetingNode(DjangoObjectType):
 
 
 class MyMeetingNode(DjangoObjectType):
+    schedules = DjangoFilterConnectionField(MeetingScheduleNode)
+    object_id = graphene.ID(source='pk', required=True)
+
     class Meta:
         model = Meeting
-        filter_fields = ['title', 'user', 'is_active']
+        filter_fields = ['title', 'user', 'id']
         interfaces = (relay.Node,)
         convert_choices_to_enum = False
 
@@ -130,6 +132,7 @@ class CreateReservedMeetingMutation(SerializerMutation):
 class MeetingQuery(ObjectType):
     meeting = relay.Node.Field(MeetingNode)
     meetings = DjangoFilterConnectionField(MeetingNode)
+    meeting_schedules = DjangoFilterConnectionField(MeetingScheduleNode)
 
     my_meeting = relay.Node.Field(MyMeetingNode)
     my_meetings = DjangoFilterConnectionField(MyMeetingNode)

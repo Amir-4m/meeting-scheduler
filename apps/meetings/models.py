@@ -20,25 +20,22 @@ class Meeting(TimeMixin):
     title = models.CharField(_("Title"), max_length=256, blank=True)
     description = models.TextField(_("Description"), blank=True)
     interval = models.PositiveSmallIntegerField(_("Interval"), choices=INTERVAL_CHOICES, default=INTERVAL_MINUTE_30)
-    is_active = models.BooleanField(_("Active ?"), default=True)
 
     def __str__(self):
-        return f' {self.id} - {self.title} - {self.user.username}'
+        return f'{self.title} - {self.user.username}'
 
 
 class MeetingSchedule(TimeMixin):
     available_at = models.DateTimeField(_("Available at"))
     meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name='schedules')
     is_active = models.BooleanField(_("Active ?"), default=True)
+    is_reserved = models.BooleanField(_("Reserved ?"), default=False)
 
     class Meta:
         unique_together = ('available_at', 'meeting')
 
     def __str__(self):
-        return f'{self.id} - {self.meeting.title} - {self.available_at}'
-
-    def is_reserved(self):
-        return hasattr(self, 'reserved')
+        return f'{self.meeting.title} - {self.available_at}'
 
 
 class ReservedMeeting(TimeMixin):
@@ -47,4 +44,4 @@ class ReservedMeeting(TimeMixin):
     meeting_schedule = models.OneToOneField(MeetingSchedule, on_delete=models.PROTECT, related_name='reserved')
 
     def __str__(self):
-        return f'{self.id} - {self.guest_fullname} - {self.guest_email} - {self.meeting_schedule.meeting.title}'
+        return f'{self.guest_fullname} - {self.guest_email} - {self.meeting_schedule.meeting.title}'

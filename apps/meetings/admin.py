@@ -4,7 +4,7 @@ from .models import Meeting, MeetingSchedule, ReservedMeeting
 
 @admin.register(Meeting)
 class MeetingAdmin(admin.ModelAdmin):
-    list_display = ('title', 'user', 'is_active', 'created_time', 'updated_time')
+    list_display = ('title', 'user', 'created_time', 'updated_time')
 
 
 @admin.register(MeetingSchedule)
